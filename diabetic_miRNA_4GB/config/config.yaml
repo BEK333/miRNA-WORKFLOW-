@@ -1,0 +1,24 @@
+# config.yaml
+# Configuration file for miRNA Snakemake workflow
+# Defines sample names and reference file locations
+
+samples:
+  - diabetic_1
+  - diabetic_2
+  - control_1
+  - control_2
+
+bowtie_index: "index/miRBase_v22"  # Path to Bowtie index base (no file extension)
+gtf: "index/miRBase_v22.gtf"
+
+# Additional parameters for workflow customization
+adapter: "TGGAATTCTCGGGTGCCAAGG"  # Adapter sequence for cutadapt
+threads: 4  # Number of threads/cores for tools
+min_count: 10  # Minimum count for miRNA filtering
+min_samples: 2  # Minimum samples for miRNA filtering
+padj_threshold: 0.05  # Adjusted p-value threshold for significance
+
+# TargetScan parameters
+species: "human"
+utr_file: "UTR_Sequences.txt"
+targetscan_script: "TargetScan_70.pl"

@@ -1,0 +1,16 @@
+# mirna.yaml
+# Conda environment for miRNA Snakemake workflow
+# Includes all required bioinformatics and Python packages
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11  # Updated Python version
+  - snakemake=9.3.2  # Updated to latest stable version as of April 2025
+  - cutadapt=4.7  # Latest stable
+  - bowtie=1.3.2  # Latest stable
+  - samtools=1.20  # Latest stable
+  - subread=2.0.6  # Latest stable
+  - pydeseq2=0.5.1  # Latest stable
+  - pandas=2.2.2  # Latest stable
+  - gseapy=1.1.2  # Latest stable

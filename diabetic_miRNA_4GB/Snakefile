@@ -1,0 +1,105 @@
+# Snakefile for miRNA Differential Expression and Pathway Analysis
+# This file defines the workflow using Snakemake rules and is heavily commented for clarity.
+
+# Use the specified configuration file for pipeline parameters
+configfile: "config/config.yaml"  # Load configuration from config.yaml
+
+# The 'all' rule defines the final targets of the workflow.
+# Snakemake will run all dependencies needed to produce these files.
+rule all:
+    input:
+        "results/DE_pathways/diabetic_vs_control.csv",  # Differential expression results
+        "results/DE_pathways/pathways.html",            # Pathway analysis report
+        "results/summary/summary.csv",                  # Summary CSV
+        "results/summary/summary.html",                 # Summary HTML
+        expand("results/filtered_counts/{sample}.counts", sample=config["samples"]),  # Filtered counts
+        "results/targets/targets.csv"                    # Target prediction results
+
+# Rule to download raw FASTQ data for each sample.
+rule download_data:
+    output:
+        "data/raw/{sample}.fastq.gz"  # Output path for downloaded FASTQ file
+    script:
+        "scripts/download_data.py"    # Python script to perform the download
+
+# Rule to trim adapters, align reads, and count miRNAs.
+rule trim_align:
+    input:
+        "data/raw/{sample}.fastq.gz"  # Input: raw FASTQ file for a sample
+    output:
+        "results/counts/{sample}.counts"  # Output: count file for the sample
+    conda:
+        "envs/mirna.yaml"                 # Use specified conda environment
+    shell:
+        '''
+        # Cutadapt trims adapters from reads
+        cutadapt -a {config["adapter"]} -j {config["threads"]} {{input}} | \
+        # Bowtie aligns reads to the miRNA index
+        bowtie -S -p $(( {config["threads"]} // 2 )) {config["bowtie_index"]} - | \
+        # Samtools converts SAM to BAM
+        samtools view -Sb - | \
+        # featureCounts quantifies miRNA reads
+        featureCounts -t miRNA -g miRNA_id -a {config["gtf"]} -o {{output}}
+        '''
+
+# New rule: filter low-count miRNAs
+rule filter_counts:
+    input:
+        expand("results/counts/{sample}.counts", sample=config["samples"])  # Input: raw count files for all samples
+    output:
+        expand("results/filtered_counts/{sample}.counts", sample=config["samples"])  # Output: filtered count files
+    params:
+        min_count=config["min_count"],
+        min_samples=config["min_samples"]
+    script:
+        "scripts/filter_counts.py"  # Python script to filter low-count miRNAs
+
+# Rule to perform differential expression analysis using DESeq2.
+rule differential_expression:
+    input:
+        expand("results/filtered_counts/{sample}.counts", sample=config["samples"])  # All filtered count files
+    output:
+        "results/DE_pathways/diabetic_vs_control.csv"  # Output: DE results
+    params:
+        padj_threshold=config["padj_threshold"]
+    script:
+        "scripts/deseq2.py"  # Python script for DE analysis
+
+# New rule: miRNA target prediction
+rule target_prediction:
+    input:
+        "results/DE_pathways/diabetic_vs_control.csv"  # Input: DE results
+    output:
+        "results/targets/targets.csv"  # Output: target prediction results
+    params:
+        targetscan_script=config["targetscan_script"],
+        utr_file=config["utr_file"],
+        species=config["species"]
+    script:
+        "scripts/target_prediction.py"  # Python script for target prediction
+
+# Rule to perform pathway enrichment analysis on DE results.
+rule pathway_analysis:
+    input:
+        "results/DE_pathways/diabetic_vs_control.csv"  # Input: DE results
+    output:
+        "results/DE_pathways/pathways.html"  # Output: pathway report
+    conda:
+        "envs/mirna.yaml"  # Use specified conda environment
+    params:
+        padj_threshold=config["padj_threshold"]
+    script:
+        "scripts/pathways.py"  # Python script for pathway analysis
+
+# Rule to generate a summary report at the end of the workflow.
+rule summary_report:
+    input:
+        fastqs=expand("data/raw/{sample}.fastq.gz", sample=config["samples"]),  # Input: raw FASTQ files
+        counts=expand("results/counts/{sample}.counts", sample=config["samples"]),  # Input: count files
+        de="results/DE_pathways/diabetic_vs_control.csv",  # Input: DE results
+        pathway="results/DE_pathways/pathways.html"  # Input: pathway report
+    output:
+        csv="results/summary/summary.csv",  # Output: summary CSV
+        html="results/summary/summary.html"  # Output: summary HTML
+    script:
+        "scripts/summary_report.py"  # Python script to generate summary report
