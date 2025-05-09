@@ -1,0 +1,13 @@
+test_url: "https://sourceforge.net/projects/mirge3/files/test/SRR772403.fastq.gz/download"
+test_fastq: "data/SRR772403.fastq.gz"
+samples:
+  - SRR772403_ctrl1
+  - SRR772403_ctrl2
+  - SRR772403_treat1
+  - SRR772403_treat2
+conditions:
+  SRR772403_ctrl1: healthy
+  SRR772403_ctrl2: healthy
+  SRR772403_treat1: diabetic
+  SRR772403_treat2: diabetic
+threads: 4

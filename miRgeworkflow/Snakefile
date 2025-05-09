@@ -1,0 +1,99 @@
+import yaml
+from pathlib import Path
+
+configfile: "config.yaml"
+
+with open(configfile) as f:
+    cfg = yaml.safe_load(f)
+
+samples = cfg['samples']
+conditions = cfg['conditions']
+threads = cfg['threads']
+test_url = cfg['test_url']
+test_fastq = cfg['test_fastq']
+
+rule all:
+    input:
+        expand("results/{{sample}}/counts.csv", sample=samples),
+        "results/summary_counts.csv",
+        "results/DE/DE_results.csv",
+        "results/plots/volcano.png",
+        "results/plots/heatmap.png"
+
+rule fetch_test_data:
+    output: test_fastq
+    log: "logs/fetch_data.log"
+    shell:
+        """
+        mkdir -p data
+        wget -O {output} {test_url} > {log} 2>&1
+        """
+
+rule mirge3:
+    input: fastq=test_fastq
+    output:
+        counts="results/{{sample}}/counts.csv"
+    log: "logs/mirge3_{{sample}}.log"
+    threads: threads
+    conda: "environment.yaml"
+    shell:
+        """
+        mkdir -p results/{{wildcards.sample}}
+        # Replace with actual miRge3 command if available
+        cp {input.fastq} {output.counts}  # Placeholder for miRge3 output
+        """
+
+rule summarize_counts:
+    input: expand("results/{{sample}}/counts.csv", sample=samples)
+    output: "results/summary_counts.csv"
+    run:
+        import pandas as pd
+        dfs = [pd.read_csv(f, index_col=0) for f in input]
+        df = pd.concat(dfs, axis=1)
+        df.columns = samples
+        df.to_csv(output[0])
+
+rule make_metadata:
+    output: "metadata.tsv"
+    run:
+        import pandas as pd
+        meta = pd.DataFrame({
+            'sample': samples,
+            'condition': [conditions[s] for s in samples]
+        })
+        meta.to_csv(output[0], sep='\t', index=False)
+
+rule deseq2:
+    input:
+        counts="results/summary_counts.csv",
+        meta="metadata.tsv"
+    output:
+        de="results/DE/DE_results.csv"
+    conda: "environment.yaml"
+    log: "logs/deseq2.log"
+    shell:
+        """
+        python scripts/deseq2.py {input.counts} {input.meta} {output.de} > {log} 2>&1
+        """
+
+rule plot_volcano:
+    input: de="results/DE/DE_results.csv"
+    output: "results/plots/volcano.png"
+    conda: "environment.yaml"
+    log: "logs/plot_volcano.log"
+    shell:
+        """
+        python scripts/plot_volcano.py {input.de} {output} > {log} 2>&1
+        """
+
+rule plot_heatmap:
+    input:
+        counts="results/summary_counts.csv",
+        meta="metadata.tsv"
+    output: "results/plots/heatmap.png"
+    conda: "environment.yaml"
+    log: "logs/plot_heatmap.log"
+    shell:
+        """
+        python scripts/plot_heatmap.py {input.counts} {input.meta} {output} > {log} 2>&1
+        
